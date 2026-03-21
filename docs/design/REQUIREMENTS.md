@@ -41,7 +41,7 @@ Series のシート名は `<DOC_TYPE>-<CATEGORY>-<No>` 形式とする。
 - **FR-001**: Series シート上でドキュメントの登録・編集・削除ができること
 - **FR-002**: テーブルは role に関わらず全プロパティ列を保持すること
 - **FR-003**: `no` 列をテーブル内の主キーとすること
-- **FR-004**: `document_id` は `doc_type` + `category` + `no` から導出し、導出元カラムより右側に配置すること
+- **FR-004**: `document_id` は `series_id` + `doc_type` の `id_prefix` + 種別内通番から導出し、導出元カラムより右側に配置すること。通番は同一 Series 内の同一 doc_type に対して一意にカウントする（`no` とは独立）
 - **FR-005**: `file_name` はカラムとせず、出力時に `document_id` + `version` + `title` から生成すること
 
 ### 3.2 マスタ管理
@@ -50,6 +50,7 @@ Series のシート名は `<DOC_TYPE>-<CATEGORY>-<No>` 形式とする。
 - **FR-011**: M_\* シートはヘッダー領域（行1-9: メタ情報）とデータ領域（行11+: 選択肢）の統一構造を持つこと
 - **FR-012**: DEF_PropertyMaster は全 M_\* シートのヘッダー領域を自動集約して生成すること
 - **FR-013**: role の定義は「独自プロパティセットを持つ M_\* シートの存在」から導出されること
+- **FR-014**: M_DocType シートに `id_prefix` 列を持ち、document_id の種別接頭辞をマスタ管理すること
 
 ### 3.3 Obsidian 連携
 
