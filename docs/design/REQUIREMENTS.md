@@ -14,7 +14,7 @@ FlowBase・TimeBase と共通の設計思想を持つ Base シリーズの一つ
 
 | 用語 | 定義 | FlowBase 対応 |
 |------|------|---------------|
-| **Series** | 同一の目的・分野に属するドキュメント群。1シート = 1 Series。アーカイブズ学（ISO 15489 / ISAD(G)）における標準術語。 | Project |
+| **Series** | 同一の主題（トピック）に属するドキュメント群。1シート = 1 Series。アーカイブズ学（ISO 15489 / ISAD(G)）における標準術語。doc_type 混成を許容し、トピック単位で束ねる。 | Project |
 | **Document** | Series 内の個別ドキュメント。テーブルの1行に対応。 | Task |
 | **Section** | Document の子要素（章・節）。当面は Obsidian 側で管理。 | — |
 | **M_\* シート** | プロパティの選択肢を定義するマスタシート。ヘッダー領域にメタ情報を持つ。 | — |
@@ -22,15 +22,15 @@ FlowBase・TimeBase と共通の設計思想を持つ Base シリーズの一つ
 
 ### Series の命名規則
 
-Series のシート名は `<DOC_TYPE>-<CATEGORY>-<No>` 形式とする。
+Series のシート名は `DOC-<domain_code>-<No>` 形式とする。
 
 | 要素 | 説明 | 例 |
 |------|------|----|
-| DOC_TYPE | 文書系列の接頭辞（doc_type から導出） | MAN, STD, REF, FAQ |
-| CATEGORY | ドキュメントドメイン | DEV, NW, OBS, AI |
-| No | Series 内通番（2桁、拡張時3桁） | 01, 02, ... |
+| DOC | Base 識別子（FlowBase の PJ に相当） | DOC |
+| domain_code | 主題領域（FlowBase の category_code と共通） | TECH, ENV, MIND |
+| No | domain 内通番（2桁、拡張時3桁） | 01, 02 |
 
-例: `MAN-DEV-01`（開発系マニュアル Series #01）
+例: `DOC-TECH-01`（Technology 領域 Series #01「Git」）
 
 ---
 
