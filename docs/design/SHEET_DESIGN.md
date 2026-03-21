@@ -331,10 +331,28 @@ Tbl:DOC_HeaderInfo       ← マーカー（テーブル直上のセル）
 | output_mode | select | `auto` | 出力モード（auto / dialog） |
 | version_default | string | `v1.1` | 新規ドキュメントのデフォルトバージョン |
 
-### 7.2 出力パス導出規則
+### 7.2 Obsidian 出力設計
 
-FlowBase ではプロジェクトごとに出力先パスを個別登録する方式だが、
-DocumentBase では Collection ID の命名規則が確定的であるため、個別登録を不要とする。
+#### 出力の分離原則
+
+FlowBase ではプロジェクトヘッダーを個別タスクの Obsidian ヘッダーにも含めているが、
+DocumentBase では **Collection ヘッダーと Document の出力先を分離** する。
+
+書籍の各章にいちいち書名・著者名を繰り返さないのと同様に、
+Collection の書誌情報は代表ドキュメント（README）にのみ出力し、
+個別 Document には Document 行のプロパティのみを出力する。
+
+| 出力対象 | ソース | 出力ファイル | 含むプロパティ |
+|---|---|---|---|
+| Collection README | Tbl:DOC_HeaderInfo | `<collection_id>/README.md` | collection_name, summary, domain, related_project, status, created, updated |
+| 個別 Document | Tbl:DOC_DocumentList の各行 | `<collection_id>/<document_id>_<version>_<title>.md` | title, doc_type, phase, domain, version, created, updated, tags, summary 等 |
+
+これにより `created` / `updated` / `status` の重複を排除し、
+Collection レベルと Document レベルの管理情報を明確に分離する。
+
+### 7.3 出力パス導出規則
+
+DocumentBase では Collection ID の命名規則が確定的であるため、個別パス登録を不要とする。
 
 ```
 output_path = <output_root> / <collection_id> / <file_name>
@@ -343,10 +361,12 @@ output_path = <output_root> / <collection_id> / <file_name>
 #### 導出例
 
 ```
-output_root:  D:\ObsidianVault\40_DocumentBase
-collection_id:    DOC-TECH-01
-file_name:    DOC-TECH-01-M01_v1.1_Git運用手引書.md
+output_root:    D:\ObsidianVault\40_DocumentBase
 
+Collection README:
+→ D:\ObsidianVault\40_DocumentBase\DOC-TECH-01\README.md
+
+個別 Document:
 → D:\ObsidianVault\40_DocumentBase\DOC-TECH-01\DOC-TECH-01-M01_v1.1_Git運用手引書.md
 ```
 
@@ -355,7 +375,7 @@ file_name:    DOC-TECH-01-M01_v1.1_Git運用手引書.md
 出力先フォルダが存在しない場合、VBA が `MkDir` で自動作成する。
 Collection シートの追加だけで、フォルダ構成も自動的に整う。
 
-### 7.3 出力モード
+### 7.4 出力モード
 
 | mode | 動作 |
 |------|------|
@@ -364,7 +384,7 @@ Collection シートの追加だけで、フォルダ構成も自動的に整う
 
 `dialog` モードは Obsidian 非利用者や、一時的に別の場所へ出力したい場合に使用する。
 
-### 7.4 FlowBase 方式との比較
+### 7.5 FlowBase 方式との比較
 
 | 観点 | FlowBase | DocumentBase |
 |------|----------|-------------|

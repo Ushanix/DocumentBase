@@ -71,6 +71,8 @@ Collection のシート名は `DOC-<domain_code>-<No>` 形式とする。
 - **FR-023**: 出力先パスは DEF_Parameter の `output_root` + Collection ID から自動導出すること（個別パス登録不要）
 - **FR-024**: 出力先フォルダが存在しない場合は自動作成すること
 - **FR-025**: 出力モード `dialog` により任意のフォルダへの出力を選択できること（非 Obsidian 利用者対応）
+- **FR-026**: Collection ヘッダー（Tbl:DOC_HeaderInfo）は Collection 代表ドキュメント（README.md）にのみ出力すること
+- **FR-027**: 個別 Document の YAML frontmatter には Tbl:DOC_DocumentList の行プロパティのみを含め、Collection ヘッダーの重複を排除すること
 
 ### 3.4 FlowBase 共通仕様
 
