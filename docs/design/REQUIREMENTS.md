@@ -56,6 +56,9 @@ Series のシート名は `<DOC_TYPE>-<CATEGORY>-<No>` 形式とする。
 - **FR-020**: M_\* シートの定義から Obsidian Templater スクリプトを VBA マクロで自動生成できること
 - **FR-021**: 出力される YAML frontmatter は role に応じて必要なプロパティのみを含むこと
 - **FR-022**: YAML のプロパティ順序は `yaml_order` に従うこと
+- **FR-023**: 出力先パスは DEF_Parameter の `output_root` + Series ID から自動導出すること（個別パス登録不要）
+- **FR-024**: 出力先フォルダが存在しない場合は自動作成すること
+- **FR-025**: 出力モード `dialog` により任意のフォルダへの出力を選択できること（非 Obsidian 利用者対応）
 
 ### 3.4 FlowBase 共通仕様
 
