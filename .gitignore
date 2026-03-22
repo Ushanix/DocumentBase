@@ -1,0 +1,19 @@
+# Backup files
+*.bak
+*.bak2
+
+# Excel lock files
+~$*.xls*
+
+# Python
+*.py
+__pycache__/
+*.pyc
+
+# Output directories
+export/
+output/
+
+# OS
+Thumbs.db
+.DS_Store
