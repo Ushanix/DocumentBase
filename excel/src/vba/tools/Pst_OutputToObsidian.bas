@@ -15,7 +15,7 @@ Option Explicit
 '     <document_id>_<version>_<title>.md  <- Each document row
 '
 ' Path resolution:
-'   if HeaderInfo.output_path is non-empty -> use as-is
+'   if HeaderInfo.collection_output_path is non-empty -> use as-is
 '   else -> DEF_Parameter.OUTPUT_ROOT / collection_id
 ' ============================================
 
@@ -25,6 +25,7 @@ Private Const TOOL_NAME As String = "OutputToObsidian"
 Private Const COL_NO As String = "no"
 Private Const COL_TITLE As String = "title"
 Private Const COL_DOCUMENT_ID As String = "document_id"
+Private Const COL_DOC_TYPE_PREFIX As String = "doc_type_prefix"
 
 ' ============================================
 ' OutputAll
@@ -202,11 +203,11 @@ Private Function OutputCollectionSheet(sheetName As String) As String
     Dim docCount As Long
     docCount = WriteDocumentFiles(ws, outputDir, headerInfo)
 
-    ' --- Update HeaderInfo.updated ---
+    ' --- Update HeaderInfo.collection_updated ---
     Dim headerMarkerRow As Long
     headerMarkerRow = FindTblStartRow(ws, TBL_DOC_HEADER_INFO)
     If headerMarkerRow > 0 Then
-        UpdateKeyValueTable ws, headerMarkerRow + 1, "updated", Format(Date, "yyyy-mm-dd")
+        UpdateKeyValueTable ws, headerMarkerRow + 1, "collection_updated", Format(Date, "yyyy-mm-dd")
     End If
 
     LogInfo TOOL_NAME, "Completed: " & sheetName & " (README + " & docCount & " docs)"
@@ -224,7 +225,7 @@ End Function
 ' ============================================
 ' ResolveOutputPath
 ' Resolve output directory using priority:
-'   1. HeaderInfo.output_path (if non-empty)
+'   1. HeaderInfo.collection_output_path (if non-empty)
 '   2. DEF_Parameter.OUTPUT_ROOT / <collection_id>_<collection_name>
 '
 ' Folder name format: DOC-TECH-01_Git運用ガイド
@@ -233,10 +234,10 @@ End Function
 Private Function ResolveOutputPath(headerInfo As Object, collectionId As String) As String
     ResolveOutputPath = ""
 
-    ' Priority 1: output_path from HeaderInfo
-    If headerInfo.Exists("output_path") Then
+    ' Priority 1: collection_output_path from HeaderInfo
+    If headerInfo.Exists("collection_output_path") Then
         Dim customPath As String
-        customPath = Trim(CStr(headerInfo("output_path")))
+        customPath = Trim(CStr(headerInfo("collection_output_path")))
         If Len(customPath) > 0 Then
             ResolveOutputPath = customPath
             LogInfo TOOL_NAME, "Using custom output_path: " & customPath
@@ -319,8 +320,9 @@ End Function
 ' Write Collection README.md with YAML frontmatter
 '
 ' Frontmatter fields (from SHEET_DESIGN.md 7.2):
-'   collection_name, summary, domain, related_project,
-'   status, created, updated
+'   collection_id, collection_name, collection_domain,
+'   collection_related_project, collection_status,
+'   collection_created, collection_updated
 ' ============================================
 Private Function WriteCollectionReadme(outputDir As String, headerInfo As Object) As Boolean
     WriteCollectionReadme = False
@@ -333,11 +335,11 @@ Private Function WriteCollectionReadme(outputDir As String, headerInfo As Object
 
     AppendYaml lines, "collection_id", headerInfo
     AppendYaml lines, "collection_name", headerInfo
-    AppendYaml lines, "domain", headerInfo
-    AppendYaml lines, "related_project", headerInfo
-    AppendYaml lines, "status", headerInfo
-    AppendYaml lines, "created", headerInfo
-    AppendYaml lines, "updated", headerInfo
+    AppendYaml lines, "collection_domain", headerInfo
+    AppendYaml lines, "collection_related_project", headerInfo
+    AppendYaml lines, "collection_status", headerInfo
+    AppendYaml lines, "collection_created", headerInfo
+    AppendYaml lines, "collection_updated", headerInfo
 
     lines.Add "---"
     lines.Add ""
@@ -353,9 +355,9 @@ Private Function WriteCollectionReadme(outputDir As String, headerInfo As Object
         lines.Add ""
     End If
 
-    If headerInfo.Exists("summary") Then
+    If headerInfo.Exists("collection_summary") Then
         Dim summary As String
-        summary = CStr(headerInfo("summary"))
+        summary = CStr(headerInfo("collection_summary"))
         If Len(summary) > 0 Then
             lines.Add summary
             lines.Add ""
@@ -491,8 +493,8 @@ Private Function WriteDocumentFiles(ws As Worksheet, outputDir As String, header
             Dim hdr As String
             hdr = headers(j)
 
-            ' Skip 'no' — internal row number
-            If hdr = COL_NO Then GoTo NextCol
+            ' Skip 'no' (internal row number) and 'doc_type_prefix' (internal derived value)
+            If hdr = COL_NO Or hdr = COL_DOC_TYPE_PREFIX Then GoTo NextCol
 
             If rowData.Exists(hdr) Then
                 Dim yamlVal As String
