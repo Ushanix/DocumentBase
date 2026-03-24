@@ -287,11 +287,11 @@ Private Function RefreshSheet(sheetName As String) As Long
 NextRow:
     Next r
 
-    ' Update HeaderInfo.updated
+    ' Update HeaderInfo.collection_updated
     Dim headerMarkerRow As Long
     headerMarkerRow = FindTblStartRow(ws, TBL_DOC_HEADER_INFO)
     If headerMarkerRow > 0 Then
-        UpdateKeyValueTable ws, headerMarkerRow + 1, "updated", Format(Date, "yyyy-mm-dd")
+        UpdateKeyValueTable ws, headerMarkerRow + 1, "collection_updated", Format(Date, "yyyy-mm-dd")
     End If
 
     LogInfo TOOL_NAME, "  " & sheetName & ": " & updatedRows & " rows"
@@ -316,6 +316,7 @@ Private Function GetCollectionId(ws As Worksheet) As String
     Dim headerInfo As Object
     Set headerInfo = ReadKeyValueTable(ws, markerRow + 1)
 
+    ' collection_id key is not prefixed with collection_ as it serves as the primary identifier
     If headerInfo.Exists("collection_id") Then
         GetCollectionId = CStr(headerInfo("collection_id"))
     End If
