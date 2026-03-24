@@ -202,39 +202,64 @@ End Function
 ' GetDomainCode
 ' Resolve domain value to short code for sheet naming
 '
-' Looks up DEF_CollectionDomain for a matching value,
-' then derives a short uppercase code.
-'
-' Strategy: Use first 4 chars uppercased as default,
-' or lookup a code_column if available.
+' Reads DEF_CollectionDomain Tbl:DEF_CollectionDomainData
+' and looks up the domain_code column for the given value.
 ' ============================================
 Private Function GetDomainCode(domainValue As String) As String
-    ' Domain values are like "Technology", "Mind", "Self", "Env", etc.
-    ' Sheet naming expects short codes: TECH, MIND, SELF, ENV, etc.
-    '
-    ' Convention: uppercase the value, truncate to reasonable length
-    ' Special mappings for longer names
-    Dim code As String
+    GetDomainCode = ""
 
-    Select Case domainValue
-        Case "Technology"
-            code = "TECH"
-        Case "Relation"
-            code = "REL"
-        Case "Finance"
-            code = "FIN"
-        Case "Spirit"
-            code = "SPRT"
-        Case Else
-            ' Use uppercase of value (works for Self, Mind, Art, Env, Career)
-            code = UCase(domainValue)
-            ' Cap at 5 characters
-            If Len(code) > 5 Then
-                code = Left(code, 5)
+    Dim sheetName As String
+    sheetName = "DEF_CollectionDomain"
+
+    If Not SheetExists(sheetName) Then
+        LogError TOOL_NAME, "Sheet not found: " & sheetName
+        Exit Function
+    End If
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+
+    Dim markerRow As Long
+    markerRow = FindTblStartRow(ws, "DEF_CollectionDomainData")
+    If markerRow = 0 Then
+        LogError TOOL_NAME, "Tbl:DEF_CollectionDomainData not found"
+        Exit Function
+    End If
+
+    Dim headerRow As Long
+    headerRow = markerRow + 1
+
+    Dim headers As Variant
+    headers = GetTableHeaders(ws, headerRow)
+
+    Dim colValue As Long
+    colValue = GetColumnIndex(headers, "value")
+
+    Dim colCode As Long
+    colCode = GetColumnIndex(headers, "domain_code")
+
+    If colValue = 0 Or colCode = 0 Then
+        LogError TOOL_NAME, "Required columns (value, domain_code) not found in DEF_CollectionDomainData"
+        Exit Function
+    End If
+
+    Dim r As Long
+    For r = headerRow + 1 To headerRow + 100
+        Dim val As Variant
+        val = ws.Cells(r, colValue).Value
+        If IsEmpty(val) Then Exit For
+
+        If CStr(val) = domainValue Then
+            Dim code As Variant
+            code = ws.Cells(r, colCode).Value
+            If Not IsEmpty(code) Then
+                GetDomainCode = CStr(code)
             End If
-    End Select
+            Exit Function
+        End If
+    Next r
 
-    GetDomainCode = code
+    LogWarn TOOL_NAME, "Domain code not found for: " & domainValue
 End Function
 
 ' ============================================
@@ -296,11 +321,12 @@ End Function
 '
 ' Sets:
 '   - collection_id (auto)
-'   - collection_name, summary, domain, related_project (from params)
-'   - status = "active" (auto)
-'   - created = today (auto)
-'   - updated = today (auto)
-'   - output_path = "" (empty, uses default)
+'   - collection_name (from params)
+'   - collection_summary, collection_domain, collection_related_project (from params)
+'   - collection_status = "active" (auto)
+'   - collection_created = today (auto)
+'   - collection_updated = today (auto)
+'   - collection_output_path = "" (empty, uses default)
 ' ============================================
 Private Function UpdateCollectionHeader(ws As Worksheet, _
                                          collectionId As String, _
@@ -324,11 +350,20 @@ Private Function UpdateCollectionHeader(ws As Worksheet, _
 
     ' Auto values
     If UpdateKeyValueTable(ws, headerRow, "collection_id", collectionId) Then updated = updated + 1
-    If UpdateKeyValueTable(ws, headerRow, "status", "active") Then updated = updated + 1
-    If UpdateKeyValueTable(ws, headerRow, "created", today) Then updated = updated + 1
-    If UpdateKeyValueTable(ws, headerRow, "updated", today) Then updated = updated + 1
+    If UpdateKeyValueTable(ws, headerRow, "collection_status", "active") Then updated = updated + 1
+    If UpdateKeyValueTable(ws, headerRow, "collection_created", today) Then updated = updated + 1
+    If UpdateKeyValueTable(ws, headerRow, "collection_updated", today) Then updated = updated + 1
 
-    ' User input values
+    ' User input values — map form keys to collection_ prefixed HeaderInfo keys
+    ' Form fields: collection_name, domain, related_project, summary
+    ' HeaderInfo keys: collection_name, collection_domain, collection_related_project, collection_summary
+    Dim paramKeyMap As Object
+    Set paramKeyMap = CreateObject("Scripting.Dictionary")
+    paramKeyMap("collection_name") = "collection_name"
+    paramKeyMap("domain") = "collection_domain"
+    paramKeyMap("related_project") = "collection_related_project"
+    paramKeyMap("summary") = "collection_summary"
+
     Dim key As Variant
     For Each key In params.Keys
         Dim keyStr As String
@@ -341,11 +376,19 @@ Private Function UpdateCollectionHeader(ws As Worksheet, _
         If IsEmpty(val) Then GoTo NextParam
         If Len(Trim(CStr(val))) = 0 Then GoTo NextParam
 
-        If UpdateKeyValueTable(ws, headerRow, keyStr, val) Then
-            LogInfo TOOL_NAME, "  Set: " & keyStr & " = " & CStr(val)
+        ' Map form key to HeaderInfo key
+        Dim headerKey As String
+        If paramKeyMap.Exists(keyStr) Then
+            headerKey = CStr(paramKeyMap(keyStr))
+        Else
+            headerKey = keyStr
+        End If
+
+        If UpdateKeyValueTable(ws, headerRow, headerKey, val) Then
+            LogInfo TOOL_NAME, "  Set: " & headerKey & " = " & CStr(val)
             updated = updated + 1
         Else
-            LogWarn TOOL_NAME, "  Key not found in HeaderInfo: " & keyStr
+            LogWarn TOOL_NAME, "  Key not found in HeaderInfo: " & headerKey
         End If
 
 NextParam:
