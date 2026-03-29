@@ -1,9 +1,10 @@
+Attribute VB_Name = "Pst_DataIO"
 Option Explicit
 
 ' ============================================
 ' Module   : Pst_DataIO
 ' Layer    : Presentation
-' Purpose  : DataIO — RefreshList, ExportSelected, ImportSelected
+' Purpose  : DataIO -- RefreshList, ExportSelected, ImportSelected
 ' Version  : 1.0.0
 ' Created  : 2026-03-22
 ' Note     : Adapted from FlowBase Pst_DataIO for DocumentBase
@@ -566,7 +567,7 @@ Private Function BuildExportData(ws As Worksheet) As Object
     Dim allMarkers As Object
     Set allMarkers = FindAllTblMarkers(ws)
 
-    ' Skip list — UI/action/computed tables
+    ' Skip list -- UI/action/computed tables
     Dim skipDict As Object
     Set skipDict = CreateObject("Scripting.Dictionary")
     Dim skipArr As Variant
@@ -796,7 +797,7 @@ Private Sub ApplyColumnValidation(ws As Worksheet, headerRow As Long, headers As
 End Sub
 
 ' ============================================
-' Export skip tables — tables NOT exported to YAML
+' Export skip tables -- tables NOT exported to YAML
 ' ============================================
 Private Function GetExportSkipTables() As Variant
     GetExportSkipTables = Array( _

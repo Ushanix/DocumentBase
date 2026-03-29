@@ -1,3 +1,4 @@
+Attribute VB_Name = "Utl_Yaml"
 Option Explicit
 
 ' ============================================
@@ -6,7 +7,7 @@ Option Explicit
 ' Purpose  : Minimal YAML serializer/parser for DataIO
 ' Version  : 1.0.0
 ' Created  : 2026-03-22
-' Note     : Simplified subset — supports flat key-value and
+' Note     : Simplified subset -- supports flat key-value and
 '            tabular data only (no nested structures)
 '
 ' YAML format:
@@ -373,7 +374,7 @@ NextParseLine:
 End Function
 
 ' ============================================
-' FlushTable — save parsed table into tablesDict
+' FlushTable -- save parsed table into tablesDict
 ' ============================================
 Private Sub FlushTable(tablesDict As Object, tableName As String, tableType As String, _
                         kvData As Object, currentHeaders As Collection, currentRows As Collection)
