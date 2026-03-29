@@ -1,25 +1,33 @@
+Attribute VB_Name = "Pst_OutputNotes"
 Option Explicit
 
 ' ============================================
-' Module   : Pst_OutputToObsidian
+' Module   : Pst_OutputNotes
 ' Layer    : Presentation
-' Purpose  : Export Collection documents to Obsidian markdown
+' Purpose  : Export Collection documents to configured output path
 '            with YAML frontmatter
-' Version  : 1.0.0
+' Version  : 1.1.0
 ' Created  : 2026-03-22
-' Note     : Adapted from FlowBase Pst_OutputToObsidian
+' Updated  : 2026-03-29 - Renamed from Pst_OutputToObsidian, 3-tier path resolution
 '
-' Output structure:
+' Output structure (flat mode):
 '   <output_dir>/
 '     README.md                           <- Collection header
 '     <document_id>_<version>_<title>.md  <- Each document row
 '
-' Path resolution:
-'   if HeaderInfo.collection_output_path is non-empty -> use as-is
-'   else -> DEF_Parameter.OUTPUT_ROOT / collection_id
+' Output structure (folder mode):
+'   <output_dir>/
+'     README.md                           <- Collection header
+'     <document_id>_<title>/
+'       <document_id>_<title>.md          <- Each document in subfolder
+'
+' Path resolution (3-tier):
+'   Priority 1: HeaderInfo.folder_output_path (absolute, as-is)
+'   Priority 2: OBSIDIAN_PATH_FROM_SYSTEM_ROOT + obsidian_path_form_vault_folder
+'   Priority 3: DOCUMENTBASE_OUTPUT_PATH or OUTPUT_ROOT / collection_folder
 ' ============================================
 
-Private Const TOOL_NAME As String = "OutputToObsidian"
+Private Const TOOL_NAME As String = "OutputNotes"
 
 ' Document columns used for frontmatter
 Private Const COL_NO As String = "no"
@@ -28,18 +36,18 @@ Private Const COL_DOCUMENT_ID As String = "document_id"
 Private Const COL_DOC_TYPE_PREFIX As String = "doc_type_prefix"
 
 ' ============================================
-' OutputAll
-' Export ALL DOC- sheets to Obsidian (batch)
+' OutputNotesAll
+' Export ALL DOC- sheets (batch)
 ' Called from UI_Dashboard action: output_all
 ' ============================================
-Public Sub OutputAll()
+Public Sub OutputNotesAll()
     On Error GoTo EH
 
     LogInfo TOOL_NAME, "========================================"
-    LogInfo TOOL_NAME, "OutputAll: Started"
+    LogInfo TOOL_NAME, "OutputNotesAll: Started"
     LogInfo TOOL_NAME, "========================================"
 
-    Application.StatusBar = "Exporting all collections to Obsidian..."
+    Application.StatusBar = "Exporting all collections..."
     Application.ScreenUpdating = False
 
     Dim docSheets As Collection
@@ -63,11 +71,13 @@ Public Sub OutputAll()
         Application.StatusBar = "Exporting: " & CStr(sheetName) & "..."
 
         Dim result As String
-        result = OutputCollectionSheet(CStr(sheetName))
+        result = OutputNotesSheet(CStr(sheetName))
 
         If Left(result, 5) = "ERROR" Then
             errorCount = errorCount + 1
             LogError TOOL_NAME, result
+        ElseIf Left(result, 4) = "SKIP" Then
+            skipCount = skipCount + 1
         Else
             successCount = successCount + 1
         End If
@@ -79,7 +89,7 @@ NextAllSheet:
     Application.StatusBar = False
 
     LogInfo TOOL_NAME, "========================================"
-    LogInfo TOOL_NAME, "OutputAll: Completed"
+    LogInfo TOOL_NAME, "OutputNotesAll: Completed"
     LogInfo TOOL_NAME, "  Success: " & successCount & ", Skip: " & skipCount & ", Error: " & errorCount
     LogInfo TOOL_NAME, "========================================"
 
@@ -92,19 +102,19 @@ NextAllSheet:
 EH:
     Application.ScreenUpdating = True
     Application.StatusBar = False
-    LogError TOOL_NAME, "OutputAll Error: " & Err.Description
+    LogError TOOL_NAME, "OutputNotesAll Error: " & Err.Description
     MsgBox "Error: " & Err.Description, vbCritical, "Error"
 End Sub
 
 ' ============================================
-' OutputToObsidian
-' Export current DOC- sheet to Obsidian (single)
+' OutputNotes
+' Export current DOC- sheet (single)
 ' ============================================
-Public Sub OutputToObsidian()
+Public Sub OutputNotes()
     On Error GoTo EH
 
     LogInfo TOOL_NAME, "========================================"
-    LogInfo TOOL_NAME, "OutputToObsidian: Started"
+    LogInfo TOOL_NAME, "OutputNotes: Started"
     LogInfo TOOL_NAME, "========================================"
 
     Dim currentSheet As String
@@ -120,17 +130,17 @@ Public Sub OutputToObsidian()
         Exit Sub
     End If
 
-    Application.StatusBar = "Exporting to Obsidian..."
+    Application.StatusBar = "Exporting notes..."
     Application.ScreenUpdating = False
 
     Dim result As String
-    result = OutputCollectionSheet(currentSheet)
+    result = OutputNotesSheet(currentSheet)
 
     Application.ScreenUpdating = True
     Application.StatusBar = False
 
     LogInfo TOOL_NAME, "========================================"
-    LogInfo TOOL_NAME, "OutputToObsidian: Completed"
+    LogInfo TOOL_NAME, "OutputNotes: Completed"
     LogInfo TOOL_NAME, "========================================"
 
     If Left(result, 5) = "ERROR" Then
@@ -149,13 +159,13 @@ EH:
 End Sub
 
 ' ============================================
-' OutputCollectionSheet
+' OutputNotesSheet
 ' Export a single Collection sheet
 '
 ' Returns:
-'   Result message (starts with "ERROR" on failure)
+'   Result message (starts with "ERROR" or "SKIP" on failure)
 ' ============================================
-Private Function OutputCollectionSheet(sheetName As String) As String
+Private Function OutputNotesSheet(sheetName As String) As String
     On Error GoTo EH
 
     LogInfo TOOL_NAME, "Processing: " & sheetName
@@ -167,7 +177,7 @@ Private Function OutputCollectionSheet(sheetName As String) As String
     Dim headerInfo As Object
     Set headerInfo = ReadHeaderInfo(ws)
     If headerInfo.Count = 0 Then
-        OutputCollectionSheet = "ERROR: Failed to read DOC_HeaderInfo"
+        OutputNotesSheet = "ERROR: Failed to read DOC_HeaderInfo"
         Exit Function
     End If
 
@@ -178,20 +188,30 @@ Private Function OutputCollectionSheet(sheetName As String) As String
         collectionId = sheetName
     End If
 
-    ' --- Resolve output directory ---
+    ' --- 3-tier path resolution ---
     Dim outputDir As String
-    outputDir = ResolveOutputPath(headerInfo, collectionId)
+    outputDir = ResolveOutputDir(headerInfo, collectionId)
 
     If Len(outputDir) = 0 Then
-        OutputCollectionSheet = "ERROR: OUTPUT_ROOT not configured and output_path not set"
+        LogInfo TOOL_NAME, "Skipped (no output path): " & sheetName
+        OutputNotesSheet = "SKIP: No output path configured"
         Exit Function
     End If
 
     LogInfo TOOL_NAME, "Output dir: " & outputDir
 
+    ' --- Check use_folder_output flag ---
+    Dim useFolderOutput As Boolean
+    useFolderOutput = False
+    If headerInfo.Exists("use_folder_output") Then
+        Dim flagVal As String
+        flagVal = UCase(Trim(CStr(headerInfo("use_folder_output"))))
+        useFolderOutput = (flagVal = "YES" Or flagVal = "TRUE")
+    End If
+
     ' --- Create output folder ---
     If Not CreateFolder(outputDir) Then
-        OutputCollectionSheet = "ERROR: Failed to create folder: " & outputDir
+        OutputNotesSheet = "ERROR: Failed to create folder: " & outputDir
         Exit Function
     End If
 
@@ -201,7 +221,7 @@ Private Function OutputCollectionSheet(sheetName As String) As String
 
     ' --- Export individual documents ---
     Dim docCount As Long
-    docCount = WriteDocumentFiles(ws, outputDir, headerInfo)
+    docCount = WriteDocumentFiles(ws, outputDir, headerInfo, useFolderOutput)
 
     ' --- Update HeaderInfo.collection_updated ---
     Dim headerMarkerRow As Long
@@ -212,48 +232,135 @@ Private Function OutputCollectionSheet(sheetName As String) As String
 
     LogInfo TOOL_NAME, "Completed: " & sheetName & " (README + " & docCount & " docs)"
 
-    OutputCollectionSheet = "Export completed: " & sheetName & vbCrLf & _
-                            "Output: " & outputDir & vbCrLf & _
-                            "1 README + " & docCount & " documents."
+    OutputNotesSheet = "Export completed: " & sheetName & vbCrLf & _
+                        "Output: " & outputDir & vbCrLf & _
+                        "1 README + " & docCount & " documents."
     Exit Function
 
 EH:
     LogError TOOL_NAME, "Error in " & sheetName & ": " & Err.Description
-    OutputCollectionSheet = "ERROR: " & Err.Description
+    OutputNotesSheet = "ERROR: " & Err.Description
 End Function
 
 ' ============================================
-' ResolveOutputPath
-' Resolve output directory using priority:
-'   1. HeaderInfo.collection_output_path (if non-empty)
-'   2. DEF_Parameter.OUTPUT_ROOT / <collection_id>_<collection_name>
+' ResolveOutputDir
+' 3-tier path resolution for note output.
 '
-' Folder name format: DOC-TECH-01_Git運用ガイド
-' collection_name is sanitized for filesystem safety.
+'   Priority 1: header_info.folder_output_path
+'     Absolute path. Already includes collection subfolder.
+'     Used when user explicitly selects output folder.
+'
+'   Priority 2: Obsidian path (OBSIDIAN_PATH_FROM_SYSTEM_ROOT + obsidian_path_form_vault_folder)
+'     Only when both are set. obsidian_path_form_vault_folder is Obsidian-specific
+'     and must NOT be combined with DOCUMENTBASE_OUTPUT_PATH.
+'
+'   Priority 3: DOCUMENTBASE_OUTPUT_PATH or OUTPUT_ROOT / collection_folder
+'     Base output directory with auto-generated collection subfolder.
+'
+' Args:
+'   headerInfo: Dictionary from DOC_HeaderInfo
+'   collectionId: Collection ID for folder name generation
+'
+' Returns:
+'   Resolved output directory path, or "" if none available
 ' ============================================
-Private Function ResolveOutputPath(headerInfo As Object, collectionId As String) As String
-    ResolveOutputPath = ""
+Public Function ResolveOutputDir(headerInfo As Object, Optional collectionId As String = "") As String
+    ResolveOutputDir = ""
 
-    ' Priority 1: collection_output_path from HeaderInfo
-    If headerInfo.Exists("collection_output_path") Then
-        Dim customPath As String
-        customPath = Trim(CStr(headerInfo("collection_output_path")))
-        If Len(customPath) > 0 Then
-            ResolveOutputPath = customPath
-            LogInfo TOOL_NAME, "Using custom output_path: " & customPath
+    ' Store priority in headerInfo for callers to check
+    ' _path_priority: 1=folder_output_path, 2=obsidian, 3=base
+
+    ' Priority 1: folder_output_path (absolute path, includes collection folder)
+    If headerInfo.Exists("folder_output_path") Then
+        Dim projPath As String
+        projPath = Trim(CStr(headerInfo("folder_output_path")))
+        If Len(projPath) > 0 Then
+            ResolveOutputDir = projPath
+            headerInfo("_path_priority") = 1
+            LogInfo TOOL_NAME, "Path resolved (Priority 1 - folder): " & projPath
             Exit Function
         End If
     End If
 
-    ' Priority 2: OUTPUT_ROOT / collection_id_collection_name
-    Dim outputRoot As String
-    outputRoot = GetOutputRoot()
+    ' Priority 2: OBSIDIAN_PATH_FROM_SYSTEM_ROOT + obsidian_path_form_vault_folder
+    Dim vaultFolder As String
+    vaultFolder = ""
+    If headerInfo.Exists("obsidian_path_form_vault_folder") Then
+        vaultFolder = Trim(CStr(headerInfo("obsidian_path_form_vault_folder")))
+    End If
 
-    If Len(outputRoot) > 0 Then
-        Dim folderName As String
-        folderName = BuildCollectionFolderName(headerInfo, collectionId)
-        ResolveOutputPath = BuildFilePath(outputRoot, folderName)
-        LogInfo TOOL_NAME, "Using OUTPUT_ROOT: " & ResolveOutputPath
+    If Len(vaultFolder) > 0 Then
+        Dim obsPath As String
+        obsPath = GetParameterPath(PARAM_OBSIDIAN_PATH)
+
+        If Len(obsPath) > 0 Then
+            vaultFolder = Replace(vaultFolder, "/", "\")
+            ResolveOutputDir = BuildFilePath(obsPath, vaultFolder)
+            headerInfo("_path_priority") = 2
+            LogInfo TOOL_NAME, "Path resolved (Priority 2 - obsidian): " & ResolveOutputDir
+            Exit Function
+        End If
+    End If
+
+    ' Priority 2.5: Legacy collection_output_path (backward compat)
+    If headerInfo.Exists("collection_output_path") Then
+        Dim customPath As String
+        customPath = Trim(CStr(headerInfo("collection_output_path")))
+        If Len(customPath) > 0 Then
+            ResolveOutputDir = customPath
+            headerInfo("_path_priority") = 2
+            LogInfo TOOL_NAME, "Path resolved (Priority 2.5 - collection_output_path): " & customPath
+            Exit Function
+        End If
+    End If
+
+    ' Priority 3: DOCUMENTBASE_OUTPUT_PATH or OUTPUT_ROOT / collection_folder
+    Dim basePath As String
+    basePath = GetParameterPath(PARAM_DOCUMENTBASE_OUTPUT_PATH)
+
+    If Len(basePath) = 0 Then
+        basePath = GetParameterPath(PARAM_OUTPUT_ROOT)
+    End If
+
+    If Len(basePath) = 0 Then
+        basePath = ThisWorkbook.Path
+    End If
+
+    If Len(basePath) > 0 Then
+        ' For Priority 3, append collection subfolder
+        If Len(collectionId) > 0 Then
+            Dim folderName As String
+            folderName = BuildCollectionFolderName(headerInfo, collectionId)
+            ResolveOutputDir = BuildFilePath(basePath, folderName)
+        Else
+            ResolveOutputDir = basePath
+        End If
+        headerInfo("_path_priority") = 3
+        LogInfo TOOL_NAME, "Path resolved (Priority 3 - base): " & ResolveOutputDir
+        Exit Function
+    End If
+
+    headerInfo("_path_priority") = 0
+    LogWarn TOOL_NAME, "No output path could be resolved"
+End Function
+
+' ============================================
+' GetParameterPath
+' Get a path value from DEF_Parameter by name.
+' ============================================
+Private Function GetParameterPath(paramName As String) As String
+    GetParameterPath = ""
+
+    If Not SheetExists(SHEET_DEF_PARAMETER) Then Exit Function
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(SHEET_DEF_PARAMETER)
+
+    Dim result As Variant
+    result = LookupTableValue(ws, TBL_DEF_PARAMETER, "name", "value", paramName)
+
+    If Not IsEmpty(result) And Len(CStr(result)) > 0 Then
+        GetParameterPath = CStr(result)
     End If
 End Function
 
@@ -278,26 +385,6 @@ Private Function BuildCollectionFolderName(headerInfo As Object, collectionId As
 End Function
 
 ' ============================================
-' GetOutputRoot
-' Get OUTPUT_ROOT from DEF_Parameter
-' ============================================
-Private Function GetOutputRoot() As String
-    GetOutputRoot = ""
-
-    If Not SheetExists(SHEET_DEF_PARAMETER) Then Exit Function
-
-    Dim ws As Worksheet
-    Set ws = ThisWorkbook.Worksheets(SHEET_DEF_PARAMETER)
-
-    Dim result As Variant
-    result = LookupTableValue(ws, TBL_DEF_PARAMETER, "name", "value", PARAM_OUTPUT_ROOT)
-
-    If Not IsEmpty(result) And Len(CStr(result)) > 0 Then
-        GetOutputRoot = CStr(result)
-    End If
-End Function
-
-' ============================================
 ' ReadHeaderInfo
 ' Read DOC_HeaderInfo key-value table
 ' ============================================
@@ -318,11 +405,6 @@ End Function
 ' ============================================
 ' WriteCollectionReadme
 ' Write Collection README.md with YAML frontmatter
-'
-' Frontmatter fields (from SHEET_DESIGN.md 7.2):
-'   collection_id, collection_name, collection_domain,
-'   collection_related_project, collection_status,
-'   collection_created, collection_updated
 ' ============================================
 Private Function WriteCollectionReadme(outputDir As String, headerInfo As Object) As Boolean
     WriteCollectionReadme = False
@@ -396,13 +478,17 @@ End Function
 ' WriteDocumentFiles
 ' Write individual document .md files
 '
-' Filename: <document_id>_<version>_<title>.md
-' Frontmatter: all DOC_DocumentList columns except no
+' Flat mode:
+'   outputDir/<document_id>_<version>_<title>.md
+'
+' Folder mode:
+'   outputDir/<document_id>_<title>/<document_id>_<title>.md
 '
 ' Returns:
 '   Number of files written
 ' ============================================
-Private Function WriteDocumentFiles(ws As Worksheet, outputDir As String, headerInfo As Object) As Long
+Private Function WriteDocumentFiles(ws As Worksheet, outputDir As String, headerInfo As Object, _
+                                     Optional useFolderOutput As Boolean = False) As Long
     WriteDocumentFiles = 0
 
     Dim markerRow As Long
@@ -476,11 +562,26 @@ Private Function WriteDocumentFiles(ws As Worksheet, outputDir As String, header
             filenameBase = title
         End If
 
+        Dim sanitizedName As String
+        sanitizedName = SanitizeFilename(filenameBase)
+
+        ' --- Determine document output directory ---
+        Dim docDir As String
+        If useFolderOutput Then
+            docDir = BuildFilePath(outputDir, sanitizedName)
+            If Not CreateFolder(docDir) Then
+                LogWarn TOOL_NAME, "Failed to create doc folder: " & docDir
+                GoTo NextDoc
+            End If
+        Else
+            docDir = outputDir
+        End If
+
         Dim filename As String
-        filename = SanitizeFilename(filenameBase) & ".md"
+        filename = sanitizedName & ".md"
 
         Dim filepath As String
-        filepath = BuildFilePath(outputDir, filename)
+        filepath = BuildFilePath(docDir, filename)
 
         ' --- Generate YAML frontmatter ---
         Dim fmLines As Collection
@@ -545,6 +646,11 @@ NextCol:
 NextDoc:
     Next r
 
+    If useFolderOutput Then
+        LogInfo TOOL_NAME, "Written " & written & " doc folders to " & outputDir
+    Else
+        LogInfo TOOL_NAME, "Written " & written & " files to " & outputDir
+    End If
     WriteDocumentFiles = written
 End Function
 

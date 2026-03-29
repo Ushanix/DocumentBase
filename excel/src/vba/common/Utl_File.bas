@@ -1,3 +1,4 @@
+Attribute VB_Name = "Utl_File"
 Option Explicit
 
 ' ============================================
@@ -133,6 +134,16 @@ ErrHandler:
     If Not stream Is Nothing Then stream.Close
     Set stream = Nothing
     ReadTextFile = ""
+End Function
+
+' ============================================
+' FolderExists
+' ============================================
+Public Function FolderExists(folderPath As String) As Boolean
+    On Error Resume Next
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    FolderExists = fso.FolderExists(folderPath)
 End Function
 
 ' ============================================

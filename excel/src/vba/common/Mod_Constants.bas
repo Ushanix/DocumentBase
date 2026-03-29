@@ -1,3 +1,4 @@
+Attribute VB_Name = "Mod_Constants"
 Option Explicit
 
 ' ============================================
@@ -87,6 +88,8 @@ Public Const PARAM_VERSION_DEFAULT As String = "VERSION_DEFAULT"
 Public Const PARAM_COLLECTION_TEMPLATE As String = "COLLECTION_TEMPLATE"
 Public Const PARAM_PREFIX_COLLECTION As String = "PREFIX_COLLECTION"
 Public Const PARAM_DATA_EXPORT_PATH As String = "DATA_EXPORT_PATH"
+Public Const PARAM_OBSIDIAN_PATH As String = "OBSIDIAN_PATH_FROM_SYSTEM_ROOT"
+Public Const PARAM_DOCUMENTBASE_OUTPUT_PATH As String = "DOCUMENTBASE_OUTPUT_PATH"
 
 ' ============================================
 ' Default Values

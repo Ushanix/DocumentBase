@@ -1,3 +1,4 @@
+Attribute VB_Name = "Pst_UpdateIndex"
 Option Explicit
 
 ' ============================================
@@ -388,7 +389,7 @@ Private Function CollectAllCollections(targetColumns As Variant) As Collection
             colName = targetColumns(i)
             If colName = COL_NO Or colName = COL_SHEET_NAME Then GoTo NextCol
 
-            ' Special: doc_count — count documents in DOC_DocumentList
+            ' Special: doc_count -- count documents in DOC_DocumentList
             If colName = "doc_count" Then
                 dict("doc_count") = CountDocuments(ws)
                 GoTo NextCol
