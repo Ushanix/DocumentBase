@@ -12,19 +12,17 @@ DocumentBase_v0.1.1.xlsm
 │
 ├── DEF_CollectionName       ← プロパティ定義群（select / prompt / auto）
 ├── DEF_Title                │  DocumentProperty.xlsx の M_* から DEF_ に移植
-├── DEF_DoctrineLevel        │  select 型はヘッダー + 選択肢データを持つ
-├── DEF_CollectionSummary    │  prompt / auto 型はヘッダーのみ
-├── DEF_Role                 │
-├── DEF_CollectionDomain     │
-├── DEF_DocType              │
+├── DEF_CollectionSummary    │  select 型はヘッダー + 選択肢データを持つ
+├── DEF_Role                 │  prompt / auto 型はヘッダーのみ
+├── DEF_CollectionDomain     │  ※ domain_code 列でシート命名用短縮コードを管理
+├── DEF_DocType              │  ※ id_prefix 列で document_id 接頭辞を管理
 ├── DEF_RelatedProject       │
 ├── DEF_ProjectGroup         │
 ├── DEF_CollectionStatus     │
 ├── DEF_Project              │
 ├── DEF_CollectionCreated    │
 ├── DEF_CollectionUpdated    │
-├── DEF_Phase                │
-├── DEF_Domain               │
+├── DEF_DocumentStatus       │  ドキュメント単位ステータス（draft/review/active/done/archived）
 ├── DEF_Version              │
 ├── DEF_Created              │
 ├── DEF_Updated              │
@@ -63,7 +61,7 @@ DOC-<domain_code>-<No>
 | 要素 | 由来 | 例 |
 |------|------|----|
 | DOC | Base 識別子（FlowBase の PJ に相当） | DOC |
-| domain_code | DEF_CollectionDomain の value から導出 | TECH, ENV, MIND |
+| domain_code | DEF_CollectionDomain の `domain_code` 列で定義 | TECH, ENV, MIND |
 | No | domain 内通番（2桁、拡張時3桁） | 01, 02 |
 
 例:
@@ -81,18 +79,17 @@ Collection は書籍に相当する概念であり、ヘッダー情報テーブ
 │  DOC-TECH-01                                              │
 │                                                           │
 │  Tbl:DOC_HeaderInfo                                       │
-│  ┌──────────────────┬──────────────────────────────────┐  │
-│  │ collection_id    │ DOC-TECH-01                      │  │
-│  │ collection_name  │ Git運用ガイド                     │  │
-│  │ summary          │ Gitの基本操作から…               │  │
-│  │ domain           │ Technology                       │  │
-│  │ related_project  │ PJ-Technology-26-01              │  │
-│  │ status           │ active                           │  │
-│  │ owner_primary    │ Ushas                            │  │
-│  │ created          │ 2026-03-22                       │  │
-│  │ updated          │ 2026-03-22                       │  │
-│  │ output_path      │                                  │  │
-│  └──────────────────┴──────────────────────────────────┘  │
+│  ┌───────────────────────────────┬───────────────────────┐│
+│  │ collection_id                 │ DOC-TECH-01           ││
+│  │ collection_name               │ Git運用ガイド          ││
+│  │ collection_summary            │ Gitの基本操作から…     ││
+│  │ collection_domain             │ Technology            ││
+│  │ collection_related_project    │ PJ-Technology-26-01   ││
+│  │ collection_status             │ active                ││
+│  │ collection_created            │ 2026-03-22            ││
+│  │ collection_updated            │ 2026-03-22            ││
+│  │ collection_output_path        │                       ││
+│  └───────────────────────────────┴───────────────────────┘│
 │                                                           │
 │  Tbl:DOC_Action                                           │
 │  ┌────┬──────────────────────┬──────────────────────┐    │
@@ -104,12 +101,12 @@ Collection は書籍に相当する概念であり、ヘッダー情報テーブ
 │  └────┴──────────────────────┴──────────────────────┘    │
 │                                                           │
 │  Tbl:DOC_DocumentList                                     │
-│  ┌────┬────────────────────┬──────────┬─── ─ ─ ──┐       │
-│  │ no │ title              │ doc_type │ ...       │       │
-│  ├────┼────────────────────┼──────────┼─── ─ ─ ──┤       │
-│  │  1 │ Git運用手引書      │ manual   │ ...       │       │
-│  │  2 │ Gitコマンドリファレンス │ reference│ ...   │       │
-│  └────┴────────────────────┴──────────┴─── ─ ─ ──┘       │
+│  ┌────┬───────────────────┬──────────┬────────┬─── ──┐   │
+│  │ no │ title             │ doc_type │ status │ ...  │   │
+│  ├────┼───────────────────┼──────────┼────────┼─── ──┤   │
+│  │  1 │ Git運用手引書     │ manual   │ active │ ...  │   │
+│  │  2 │ Gitコマンドリファレンス│ reference│ draft │ ... │   │
+│  └────┴───────────────────┴──────────┴────────┴─── ──┘   │
 │                                                           │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -117,19 +114,24 @@ Collection は書籍に相当する概念であり、ヘッダー情報テーブ
 ### 2.3 Tbl:DOC_HeaderInfo カラム
 
 Collection の書誌情報。書籍の表紙・奥付に相当する。
+DOC_DocumentList のプロパティとの名前衝突を防ぐため、全キーに `collection_` 接頭辞を付与する。
 
 | key | type | description |
 |-----|------|-------------|
 | collection_id | string | Collection ID（シート名と同一） |
 | collection_name | string | Collection の名称（書籍名に相当） |
-| summary | string | Collection の概要・目的 |
-| domain | select | 主題領域（DEF_CollectionDomain） |
-| related_project | string | FlowBase プロジェクトへの参照（任意） |
-| status | select | Collection のステータス（active / done / archived） |
-| owner_primary | select | Collection の管理者・筆者（DEF_Owner、FlowBase owner_primary と共通） |
-| created | date | 作成日 |
-| updated | date | 最終更新日 |
-| output_path | path | 出力先パスの個別指定（空欄時は DEF_Parameter の OUTPUT_ROOT から自動導出） |
+| collection_summary | string | Collection の概要・目的 |
+| collection_domain | select | 主題領域（DEF_CollectionDomain） |
+| collection_related_project | string | FlowBase プロジェクトへの参照（任意） |
+| collection_status | select | Collection のステータス（active / done / archived） |
+| collection_created | date | 作成日 |
+| collection_updated | date | 最終更新日 |
+| collection_output_path | path | 出力先パスの個別指定（空欄時は DEF_Parameter の OUTPUT_ROOT から自動導出） |
+
+#### 設計判断: owner_primary の廃止
+
+Collection（フォルダ）レベルの管理者情報は、ツールが想定する小規模チームでは不要。
+owner_primary はドキュメント単位の担当者として DOC_DocumentList 側に配置する。
 
 ### 2.4 Tbl:DOC_Action カラム
 
@@ -169,28 +171,35 @@ Collection シート上の操作ボタン定義。
 
 | # | column | type | description |
 |---|--------|------|-------------|
-| 3 | doctrine_level | select | ドクトリンレベル |
-| 4 | doc_type | select | ドキュメント種別 |
-| 5 | doc_type_prefix | string | 導出値: doc_type の ID 接頭辞（Refresh で自動設定） |
+| 3 | doc_type | select | ドキュメント種別（DEF_DocType） |
+| 4 | doc_type_prefix | string | 導出値: doc_type の ID 接頭辞（Refresh で自動設定） |
+| 5 | status | select | ドキュメントステータス（DEF_DocumentStatus: draft / review / active / done / archived） |
 | 6 | role | select | ノートの役割 |
-| 7 | phase | select | 情報サイクルフェーズ |
-| 8 | domain | select | 主題領域 |
+| 7 | owner_primary | select | ドキュメント担当者（DEF_Owner、FlowBase owner_primary と共通） |
 
 #### メタ情報
 
 | # | column | type | description |
 |---|--------|------|-------------|
-| 9 | version | string | バージョン |
-| 10 | created | date | 作成日 |
-| 11 | updated | date | 更新日 |
-| 12 | tags | string | タグ（カンマ区切り） |
-| 13 | summary | string | 概要 |
+| 8 | version | string | バージョン |
+| 9 | created | date | 作成日 |
+| 10 | updated | date | 更新日 |
+| 11 | tags | string | タグ（カンマ区切り） |
+| 12 | summary | string | 概要 |
 
 #### 導出値（右側）
 
 | # | column | type | description |
 |---|--------|------|-------------|
-| 14 | document_id | string | 導出値: Collection ID + doc_type接頭辞 + 種別内通番 → `DOC-TECH-01-M01` |
+| 13 | document_id | string | 導出値: Collection ID + doc_type接頭辞 + 種別内通番 → `DOC-TECH-01-M01` |
+
+#### 削除されたカラム（v1.1.0 → v1.2.0）
+
+| column | 削除理由 |
+|--------|----------|
+| doctrine_level | doc_type から一意に決定可能。DEF_DocType に doctrine_level 列を追加し定義情報として保持。出力時に導出可能。 |
+| phase | doc_type から一意に決定可能。DocumentBase に登録された時点で体系化・標準化フェーズ。 |
+| domain | Collection の domain と同一であるべき。コレクション単位で一意。DOC_HeaderInfo の collection_domain で管理。 |
 
 ### 3.3 document_id の導出規則
 
@@ -299,7 +308,7 @@ Collection 追加フォーム。
 | `Tbl:UI_Operations` | Add Collection Sheet ボタン |
 | `Tbl:AddCollection` | 入力フォーム（collection_name, domain, related_project, summary） |
 
-`AddCollectionSheet` 実行時に VBA が自動セットする値: collection_id, status=active, created=today, updated=today。
+`AddCollectionSheet` 実行時に VBA が自動セットする値: collection_id, collection_status=active, collection_created=today, collection_updated=today。
 
 ### 4.3 UI_CollectionIndex
 
@@ -409,10 +418,10 @@ Tbl:DOC_HeaderInfo       ← マーカー（テーブル直上のセル）
 | シート名 | PJ-INFRA-26-01 | DOC-TECH-01 |
 | 行ID | T001 | M01, RF01, C01（doc_type別） |
 | テーブルマーカー | Tbl:PJ\_\* | Tbl:DOC\_\* |
-| ヘッダーテーブル | Tbl:PJ\_HeaderInfo | Tbl:DOC\_HeaderInfo |
+| ヘッダーテーブル | Tbl:PJ\_HeaderInfo | Tbl:DOC\_HeaderInfo（collection\_接頭辞） |
 | メインテーブル | Tbl:PJ\_TaskList | Tbl:DOC\_DocumentList |
 | アクションテーブル | Tbl:Actions | Tbl:DOC\_Action |
-| パス管理 | DEF_Parameter + 個別パス登録 | DEF_Parameter + output_path 個別上書き |
+| パス管理 | DEF_Parameter + 個別パス登録 | DEF_Parameter + collection\_output\_path 個別上書き |
 | 出力先導出 | 個別登録制 | collection_id + collection_name から自動導出 |
 | 一括操作 | UpdateAll | RefreshAll / OutputAll |
 | データIO | UI_DataIO (YAML) | UI_DataIO (YAML) |
@@ -446,8 +455,8 @@ Collection の書誌情報は代表ドキュメント（README）にのみ出力
 
 | 出力対象 | ソース | 出力ファイル | 含むプロパティ |
 |---|---|---|---|
-| Collection README | Tbl:DOC_HeaderInfo | `<output_dir>/README.md` | collection_id, collection_name, domain, related_project, status, created, updated |
-| 個別 Document | Tbl:DOC_DocumentList の各行 | `<output_dir>/<document_id>_<version>_<title>.md` | DOC_DocumentList 全カラム（no を除く） |
+| Collection README | Tbl:DOC_HeaderInfo | `<output_dir>/README.md` | collection_id, collection_name, collection_domain, collection_related_project, collection_status, collection_created, collection_updated |
+| 個別 Document | Tbl:DOC_DocumentList の各行 | `<output_dir>/<document_id>_<version>_<title>.md` | DOC_DocumentList 全カラム（no, doc_type_prefix を除く） |
 
 ### 7.3 出力パス導出規則
 
@@ -456,8 +465,8 @@ Collection の出力先は以下の優先順位で解決する。
 #### パス解決ルール
 
 ```
-if  Tbl:DOC_HeaderInfo の output_path が有効パス
-    → output_path をそのまま使用
+if  Tbl:DOC_HeaderInfo の collection_output_path が有効パス
+    → collection_output_path をそのまま使用
 else
     → DEF_Parameter の OUTPUT_ROOT / <collection_id>_<collection_name>
 ```

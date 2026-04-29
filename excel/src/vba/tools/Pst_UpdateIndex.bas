@@ -186,8 +186,8 @@ Private Sub UpdateStatus()
         If headerMarkerRow > 0 Then
             Dim headerInfo As Object
             Set headerInfo = ReadKeyValueTable(ws, headerMarkerRow + 1)
-            If headerInfo.Exists("status") Then
-                If CStr(headerInfo("status")) = "active" Then
+            If headerInfo.Exists("collection_status") Then
+                If CStr(headerInfo("collection_status")) = "active" Then
                     activeCollections = activeCollections + 1
                 End If
             End If
@@ -380,6 +380,8 @@ Private Function CollectAllCollections(targetColumns As Variant) As Collection
         dict(COL_SHEET_NAME) = CStr(sheetName)
 
         ' Map HeaderInfo keys to target columns
+        ' HeaderInfo uses collection_ prefix; CollectionIndex columns may not.
+        ' Try both the target column name and collection_ prefixed version.
         Dim i As Long
         Dim colName As String
         For i = LBound(targetColumns) To UBound(targetColumns)
@@ -398,9 +400,11 @@ Private Function CollectAllCollections(targetColumns As Variant) As Collection
                 GoTo NextCol
             End If
 
-            ' Direct mapping from header info
+            ' Direct mapping from header info (try exact key first, then collection_ prefixed)
             If headerInfo.Exists(colName) Then
                 dict(colName) = headerInfo(colName)
+            ElseIf headerInfo.Exists("collection_" & colName) Then
+                dict(colName) = headerInfo("collection_" & colName)
             End If
 
 NextCol:

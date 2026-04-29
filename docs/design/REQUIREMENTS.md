@@ -29,7 +29,7 @@ FlowBase・TimeBase と共通の設計思想を持つ Base シリーズの一つ
 - FlowBase: `PJ-Technology-26-01`「TWLM研究プロジェクト」 → 活動の管理
 - DocumentBase: `DOC-TECH-03`「TWLMの研究」 → 成果物の管理
 
-Collection ヘッダーには `related_project` として FlowBase プロジェクトへの参照を任意で持てるが、必須ではない。
+Collection ヘッダーには `collection_related_project` として FlowBase プロジェクトへの参照を任意で持てるが、必須ではない。
 
 ### Collection の命名規則
 
@@ -38,7 +38,7 @@ Collection のシート名は `DOC-<domain_code>-<No>` 形式とする。
 | 要素 | 説明 | 例 |
 |------|------|----|
 | DOC | Base 識別子（FlowBase の PJ に相当） | DOC |
-| domain_code | 主題領域（FlowBase の category_code と共通） | TECH, ENV, MIND |
+| domain_code | DEF_CollectionDomain の `domain_code` 列で定義（FlowBase の category_code と共通） | TECH, ENV, MIND |
 | No | domain 内通番（2桁、拡張時3桁） | 01, 02 |
 
 例: `DOC-TECH-01`（Technology 領域 Collection #01「Gitの使い方」）
@@ -61,14 +61,17 @@ Collection のシート名は `DOC-<domain_code>-<No>` 形式とする。
 - **FR-011**: M_\* シートはヘッダー領域（行1-9: メタ情報）とデータ領域（行11+: 選択肢）の統一構造を持つこと
 - **FR-012**: DEF_PropertyMaster は全 M_\* シートのヘッダー領域を自動集約して生成すること
 - **FR-013**: role の定義は「独自プロパティセットを持つ M_\* シートの存在」から導出されること
-- **FR-014**: M_DocType シートに `id_prefix` 列を持ち、document_id の種別接頭辞をマスタ管理すること
+- **FR-014**: DEF_DocType シートに `id_prefix` 列を持ち、document_id の種別接頭辞をマスタ管理すること
+- **FR-015**: DEF_CollectionDomain シートに `domain_code` 列を持ち、シート命名用の短縮コードをマスタ管理すること（ハードコーディング禁止）
+- **FR-016**: DOC_DocumentList に `status` 列（draft / review / active / done / archived）を持ち、ドキュメント単位の進捗を管理できること
+- **FR-017**: DOC_HeaderInfo の全キーには `collection_` 接頭辞を付与し、DOC_DocumentList のプロパティ名との衝突を防ぐこと
 
 ### 3.3 Obsidian 連携
 
 - **FR-020**: M_\* シートの定義から Obsidian Templater スクリプトを VBA マクロで自動生成できること
 - **FR-021**: 出力される YAML frontmatter は role に応じて必要なプロパティのみを含むこと
 - **FR-022**: YAML のプロパティ順序は `yaml_order` に従うこと
-- **FR-023**: 出力先パスは DEF_Parameter の `output_root` + Collection ID から自動導出すること（個別パス登録不要）
+- **FR-023**: 出力先パスは DEF_Parameter の `OUTPUT_ROOT` + Collection ID から自動導出すること（個別パス登録不要、`collection_output_path` で個別上書き可）
 - **FR-024**: 出力先フォルダが存在しない場合は自動作成すること
 - **FR-025**: 出力モード `dialog` により任意のフォルダへの出力を選択できること（非 Obsidian 利用者対応）
 - **FR-026**: Collection ヘッダー（Tbl:DOC_HeaderInfo）は Collection 代表ドキュメント（README.md）にのみ出力すること
@@ -107,35 +110,50 @@ Collection のシート名は `DOC-<domain_code>-<No>` 形式とする。
 IMG の DocumentProperty.xlsm で定義された全プロパティ。
 DocumentBase のテーブルは全列を保持し、role に応じて出力をフィルタする。
 
-### 共通プロパティ（applies_to: all）
+### DOC_DocumentList プロパティ
 
-| yaml_order | property_name | data_type | input_method |
-|------------|---------------|-----------|-------------|
-| 1 | title | string | prompt |
-| 3 | role | select | suggester |
-| 5 | projectGroup | select | suggester |
-| 6 | project | select | suggester |
-| 13 | phase | select | suggester |
-| 16 | domain | select | suggester |
-| 17 | version | string | auto |
-| 18 | created | date | auto |
-| 19 | updated | date | auto |
-| 20 | tags | list | manual |
-| 21 | summary | string | manual |
+DocumentBase v1.2.0 で DOC_DocumentList に保持するプロパティ。
+doctrine_level / phase は doc_type から一意に導出可能なため削除。
+domain は Collection 単位で管理（collection_domain）するため削除。
 
-### role=project 専用
+| # | property_name | data_type | input_method | note |
+|---|---------------|-----------|-------------|------|
+| 1 | no | number | auto | Refresh で自動採番 |
+| 2 | title | string | prompt | 行の存在判定 |
+| 3 | doc_type | select | suggester | DEF_DocType |
+| 4 | doc_type_prefix | string | auto | DEF_DocType.id_prefix から導出 |
+| 5 | status | select | suggester | DEF_DocumentStatus（draft/review/active/done/archived） |
+| 6 | role | select | suggester | |
+| 7 | owner_primary | select | suggester | DEF_Owner（ドキュメント担当者） |
+| 8 | version | string | auto | |
+| 9 | created | date | auto | |
+| 10 | updated | date | auto | |
+| 11 | tags | list | manual | |
+| 12 | summary | string | manual | |
+| 13 | document_id | string | auto | 導出値 |
 
-| yaml_order | property_name | data_type | input_method |
-|------------|---------------|-----------|-------------|
-| 7 | project_status | select | suggester |
+### DOC_HeaderInfo プロパティ（collection\_ 接頭辞）
 
-### role=docs, dashboard 専用
+| property_name | data_type | note |
+|---------------|-----------|------|
+| collection_id | string | シート名と同一 |
+| collection_name | string | |
+| collection_summary | string | |
+| collection_domain | select | DEF_CollectionDomain |
+| collection_related_project | string | FlowBase 参照（任意） |
+| collection_status | select | active / done / archived |
+| collection_created | date | |
+| collection_updated | date | |
+| collection_output_path | path | 個別出力先（任意） |
 
-| yaml_order | property_name | data_type | input_method |
-|------------|---------------|-----------|-------------|
-| 2 | doctrine_level | select | suggester |
-| 4 | doc_type | select | suggester |
-| 9 | status | select | suggester |
+### IMG プロパティとの対応（参考）
+
+| IMG property | DocumentBase 配置 | 変更理由 |
+|---|---|---|
+| doctrine_level | DEF_DocType.doctrine_level 列（定義情報として保持） | doc_type から一意導出。DocumentList 列としては冗長 |
+| phase | DEF_DocType.phase 列（定義情報として保持） | doc_type から一意導出 |
+| domain | DOC_HeaderInfo.collection_domain | コレクション単位で一意 |
+| owner_primary | DOC_DocumentList.owner_primary | Collection 管理者→ドキュメント担当者へ移動 |
 
 ---
 

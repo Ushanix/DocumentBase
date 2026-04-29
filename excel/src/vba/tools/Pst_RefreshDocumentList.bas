@@ -6,9 +6,10 @@ Option Explicit
 ' Purpose  : Recalculate derived values in DOC_DocumentList
 '            - doc_type_prefix (from DEF_DocType)
 '            - document_id (collection_id + prefix + sequential number)
-' Version  : 1.1.0
+'            - Auto-fill: role (default "docs"), created/updated (today)
+' Version  : 1.2.0
 ' Created  : 2026-03-22
-' Updated  : 2026-03-22 — Added RefreshAll for batch processing
+' Updated  : 2026-03-24 — Auto-fill role/created/updated; collection_ prefix
 ' ============================================
 
 Private Const TOOL_NAME As String = "RefreshDocumentList"
@@ -18,6 +19,12 @@ Private Const COL_NO As String = "no"
 Private Const COL_DOC_TYPE As String = "doc_type"
 Private Const COL_DOC_TYPE_PREFIX As String = "doc_type_prefix"
 Private Const COL_DOCUMENT_ID As String = "document_id"
+Private Const COL_ROLE As String = "role"
+Private Const COL_CREATED As String = "created"
+Private Const COL_UPDATED As String = "updated"
+
+' Default values for auto-fill
+Private Const DEFAULT_ROLE As String = "docs"
 
 ' ============================================
 ' RefreshDocumentList
@@ -182,14 +189,28 @@ Private Function RefreshSheet(sheetName As String) As Long
     Dim colTitle As Long
     colTitle = GetColumnIndex(headers, "title")
 
+    Dim colRole As Long
+    colRole = GetColumnIndex(headers, COL_ROLE)
+
+    Dim colCreated As Long
+    colCreated = GetColumnIndex(headers, COL_CREATED)
+
+    Dim colUpdated As Long
+    colUpdated = GetColumnIndex(headers, COL_UPDATED)
+
     If colDocType = 0 Or colDocId = 0 Or colTitle = 0 Then
         LogWarn TOOL_NAME, "Required columns not found in " & sheetName
         RefreshSheet = 0
         Exit Function
     End If
 
+    Dim today As String
+    today = Format(Date, "yyyy-mm-dd")
+
     ' Scan rows: title が入力されている行を有効行とする
     ' no, doc_type_prefix, document_id を自動生成
+    ' role が空なら "docs" を自動入力
+    ' created/updated が空なら今日を自動入力
     Dim typeCounters As Object
     Set typeCounters = CreateObject("Scripting.Dictionary")
 
@@ -233,6 +254,33 @@ Private Function RefreshSheet(sheetName As String) As Long
         rowSeq = rowSeq + 1
         If colNo > 0 Then
             ws.Cells(r, colNo).Value = rowSeq
+        End If
+
+        ' --- role が空なら "docs" を自動入力 ---
+        If colRole > 0 Then
+            Dim roleVal As Variant
+            roleVal = ws.Cells(r, colRole).Value
+            If IsEmpty(roleVal) Or Len(Trim(CStr(roleVal))) = 0 Then
+                ws.Cells(r, colRole).Value = DEFAULT_ROLE
+            End If
+        End If
+
+        ' --- created が空なら今日を自動入力 ---
+        If colCreated > 0 Then
+            Dim createdVal As Variant
+            createdVal = ws.Cells(r, colCreated).Value
+            If IsEmpty(createdVal) Or Len(Trim(CStr(createdVal))) = 0 Then
+                ws.Cells(r, colCreated).Value = today
+            End If
+        End If
+
+        ' --- updated が空なら今日を自動入力 ---
+        If colUpdated > 0 Then
+            Dim updatedVal As Variant
+            updatedVal = ws.Cells(r, colUpdated).Value
+            If IsEmpty(updatedVal) Or Len(Trim(CStr(updatedVal))) = 0 Then
+                ws.Cells(r, colUpdated).Value = today
+            End If
         End If
 
         ' --- doc_type から prefix を検索 ---
@@ -287,11 +335,11 @@ Private Function RefreshSheet(sheetName As String) As Long
 NextRow:
     Next r
 
-    ' Update HeaderInfo.updated
+    ' Update HeaderInfo.collection_updated
     Dim headerMarkerRow As Long
     headerMarkerRow = FindTblStartRow(ws, TBL_DOC_HEADER_INFO)
     If headerMarkerRow > 0 Then
-        UpdateKeyValueTable ws, headerMarkerRow + 1, "updated", Format(Date, "yyyy-mm-dd")
+        UpdateKeyValueTable ws, headerMarkerRow + 1, "collection_updated", Format(Date, "yyyy-mm-dd")
     End If
 
     LogInfo TOOL_NAME, "  " & sheetName & ": " & updatedRows & " rows"
@@ -316,6 +364,7 @@ Private Function GetCollectionId(ws As Worksheet) As String
     Dim headerInfo As Object
     Set headerInfo = ReadKeyValueTable(ws, markerRow + 1)
 
+    ' collection_id key is not prefixed with collection_ as it serves as the primary identifier
     If headerInfo.Exists("collection_id") Then
         GetCollectionId = CStr(headerInfo("collection_id"))
     End If
